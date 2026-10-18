@@ -20,6 +20,13 @@ public final class ApiModels {
         @NotNull @Min(2) Integer goal
     ) {}
 
+    public record UpdateCampaign(
+        @NotBlank @Size(max = 80) String title,
+        @Size(max = 500) String description,
+        @NotNull @Min(1) @Max(90) Integer discount,
+        @NotNull @Min(2) Integer goal
+    ) {}
+
     public record Campaign(long id, long merchantId, String title,
                            String description, int discount, int goal, int joined) {}
 }

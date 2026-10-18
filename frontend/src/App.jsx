@@ -13,7 +13,7 @@ function BrandHeader() {
 }
 
 // Props are values passed from a parent component into a child component.
-function CampaignCard({ campaign }) {
+function CampaignCard({ campaign, onEdit, onDelete }) {
   const percent = Math.min(100, Math.round((campaign.joined / campaign.goal) * 100));
   return (
     <article className="campaign-card">
@@ -23,6 +23,7 @@ function CampaignCard({ campaign }) {
         <h3>{campaign.title}</h3><p>{campaign.description}</p>
         <div className="progress-label"><span>{campaign.joined} of {campaign.goal} joined</span><strong>{percent}%</strong></div>
         <div className="progress-track" role="progressbar" aria-valuenow={percent} aria-valuemin="0" aria-valuemax="100" aria-label="Campaign progress"><div className="progress-fill" style={{ width: percent + "%" }} /></div>
+        <div className="campaign-actions"><button className="secondary-button" onClick={() => onEdit(campaign)} disabled={campaign.joined > 0}>Edit</button><button className="secondary-button" onClick={() => onDelete(campaign)} disabled={campaign.joined > 0}>Delete</button></div>
       </div>
     </article>
   );
@@ -63,30 +64,51 @@ export default function App() {
   }, []); // Empty array means this effect runs on initial mount.
 
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [description, setDescription] = useState("");
   const [title, setTitle] = useState("");
   const [discount, setDiscount] = useState("10");
   const [goal, setGoal] = useState("25");
 
   // Event handlers run in response to user actions, such as submitting a form.
+  function openCreate() {
+    setEditingId(null); setTitle(""); setDescription(""); setDiscount("10"); setGoal("25"); setShowForm(true);
+  }
+
+  function openEdit(campaign) {
+    setEditingId(campaign.id); setTitle(campaign.title); setDescription(campaign.description);
+    setDiscount(String(campaign.discount)); setGoal(String(campaign.goal)); setShowForm(true);
+  }
+
+  async function handleDelete(campaign) {
+    if (!window.confirm(`Delete "${campaign.title}"? This cannot be undone.`)) return;
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Could not delete campaign.");
+      setCampaigns(previous => previous.filter(item => item.id !== campaign.id));
+    } catch (err) { setError(err.message); }
+  }
+
   async function handleCreate(event) {
     event.preventDefault();
     setError("");
     setSaving(true);
     try {
       // POST sends JSON to Spring Boot. await pauses this function until the response arrives.
-      const response = await fetch("/api/campaigns", {
-        method: "POST",
+      const response = await fetch(editingId ? `/api/campaigns/${editingId}` : "/api/campaigns", {
+        method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           merchantId: Number(merchantId), title: title.trim(),
-          description: "Your new group-buying campaign.",
+          description: description.trim(),
           discount: Number(discount), goal: Number(goal)
         })
       });
       if (!response.ok) throw new Error("Campaign could not be saved. Check the form and backend.");
       const created = await response.json();
-      setCampaigns(previous => [created, ...previous]);
-      setTitle(""); setDiscount("10"); setGoal("25"); setShowForm(false);
+      setCampaigns(previous => editingId ? previous.map(item => item.id === editingId ? created : item) : [created, ...previous]);
+      setTitle(""); setDescription(""); setDiscount("10"); setGoal("25"); setEditingId(null); setShowForm(false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -121,12 +143,12 @@ export default function App() {
       <BrandHeader />
       <main>
         <section className="hero">
-          <div className="hero-copy"><div className="pill">✦ AI-powered group buying</div><h1>Better deals.<br/><span className="gradient-text">Together.</span></h1><p>Turn every purchase into a shared win. Create group campaigns, grow your community, and reward everyone when goals are reached.</p><button className="primary-button" onClick={() => setShowForm(true)}>Create a campaign <span aria-hidden="true">→</span></button><div className="hero-note">Demo only · No payments processed</div></div>
+          <div className="hero-copy"><div className="pill">✦ AI-powered group buying</div><h1>Better deals.<br/><span className="gradient-text">Together.</span></h1><p>Turn every purchase into a shared win. Create group campaigns, grow your community, and reward everyone when goals are reached.</p><button className="primary-button" onClick={openCreate}>Create a campaign <span aria-hidden="true">→</span></button><div className="hero-note">Demo only · No payments processed</div></div>
           <div className="hero-visual" aria-label="CrowdRewards and PayPal brand introduction"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="visual-center"><div className="visual-logo">✦</div><strong>CrowdRewards</strong><span className="visual-plus">+</span><strong className="paypal">PayPal</strong><small>Grow together. Reward together.</small></div></div>
         </section>
         <section className="campaign-section" id="campaigns"><div className="section-heading"><div><div className="eyebrow">MERCHANT STUDIO</div><h2>Campaigns</h2><p>Manage your group-buying ideas in one place.</p></div><button className="secondary-button" onClick={() => setShowForm(true)}>+ New campaign</button></div>
           {error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}
-          {loading ? <p>Loading campaigns…</p> : campaigns.length === 0 ? <p>No campaigns yet. Register a merchant and create your first campaign.</p> : <div className="campaign-grid">{campaigns.map(campaign => <CampaignCard key={campaign.id} campaign={campaign} />)}</div>}
+          {loading ? <p>Loading campaigns…</p> : campaigns.length === 0 ? <p>No campaigns yet. Register a merchant and create your first campaign.</p> : <div className="campaign-grid">{campaigns.map(campaign => <CampaignCard key={campaign.id} campaign={campaign} onEdit={openEdit} onDelete={handleDelete} />)}</div>}
           <section className="merchant-panel"><h3>Merchant registration</h3><p>Register a merchant to own new campaigns.</p>
             <form onSubmit={handleCreateMerchant} className="merchant-form">
               <label>Merchant name<input required maxLength={120} value={merchantName} onChange={event => setMerchantName(event.target.value)} placeholder="Your store name" /></label>
@@ -137,7 +159,7 @@ export default function App() {
         </section>
       </main>
       <footer>© {new Date().getFullYear()} CrowdRewards · PayPal Sandbox integration coming in a later milestone.</footer>
-      {showForm && <div className="modal-backdrop" onClick={() => setShowForm(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onClick={event => event.stopPropagation()}><div className="modal-heading"><h2 id="form-title">New campaign</h2><button className="icon-button" aria-label="Close form" onClick={() => setShowForm(false)}>×</button></div><p>Create a demo campaign. Campaigns are saved to SQLite through Spring Boot.</p><form onSubmit={handleCreate}><label>Merchant<select required value={merchantId} onChange={event => setMerchantId(event.target.value)}><option value="">Select merchant</option>{merchants.map(merchant => <option key={merchant.id} value={merchant.id}>{merchant.name}</option>)}</select></label><label>Campaign name<input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Weekend Coffee Bundle" /></label><label>Discount percentage<input required type="number" min="1" max="90" step="1" value={discount} onChange={event => setDiscount(event.target.value)} /></label><label>Group target<input required type="number" min="2" step="1" value={goal} onChange={event => setGoal(event.target.value)} /></label><button className="primary-button" type="submit" disabled={saving || !merchantId}>{saving ? "Saving…" : "Create campaign →"}</button></form></section></div>}
+      {showForm && <div className="modal-backdrop" onClick={() => setShowForm(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onClick={event => event.stopPropagation()}><div className="modal-heading"><h2 id="form-title">{editingId ? "Edit campaign" : "New campaign"}</h2><button className="icon-button" aria-label="Close form" onClick={() => setShowForm(false)}>×</button></div><p>Create a demo campaign. Campaigns are saved to SQLite through Spring Boot.</p><form onSubmit={handleCreate}><label>Merchant<select required value={merchantId} onChange={event => setMerchantId(event.target.value)}><option value="">Select merchant</option>{merchants.map(merchant => <option key={merchant.id} value={merchant.id}>{merchant.name}</option>)}</select></label><label>Campaign name<input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Weekend Coffee Bundle" /></label><label>Description<textarea maxLength={500} value={description} onChange={event => setDescription(event.target.value)} /></label><label>Discount percentage<input required type="number" min="1" max="90" step="1" value={discount} onChange={event => setDiscount(event.target.value)} /></label><label>Group target<input required type="number" min="2" step="1" value={goal} onChange={event => setGoal(event.target.value)} /></label><button className="primary-button" type="submit" disabled={saving || !merchantId}>{saving ? "Saving…" : editingId ? "Save changes →" : "Create campaign →"}</button></form></section></div>}
     </div>
   );
 }
