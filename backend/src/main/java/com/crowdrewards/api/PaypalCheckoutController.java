@@ -24,18 +24,19 @@ import java.util.UUID;
 @RequestMapping("/api/checkout")
 public class PaypalCheckoutController {
     private final JdbcTemplate jdbc;
+    private final CampaignRefundService refundService;
     private final ObjectMapper mapper;
     private final TransactionTemplate tx;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final String clientId, secret, baseUrl, returnUrl;
 
-    public PaypalCheckoutController(JdbcTemplate jdbc, ObjectMapper mapper,
+    public PaypalCheckoutController(JdbcTemplate jdbc, ObjectMapper mapper, CampaignRefundService refundService,
             org.springframework.transaction.PlatformTransactionManager transactionManager,
             @Value("${paypal.sandbox.client-id:}") String clientId,
             @Value("${paypal.sandbox.client-secret:}") String secret,
             @Value("${paypal.base-url:https://api-m.sandbox.paypal.com}") String baseUrl,
             @Value("${paypal.return-url:http://localhost:5173/}") String returnUrl) {
-        this.jdbc = jdbc; this.mapper = mapper;
+        this.jdbc = jdbc; this.mapper = mapper; this.refundService = refundService;
         this.tx = new TransactionTemplate(transactionManager);
         this.clientId = clientId; this.secret = secret; this.baseUrl = baseUrl; this.returnUrl = returnUrl;
     }
@@ -117,8 +118,10 @@ public class PaypalCheckoutController {
         tx.executeWithoutResult(status -> {
             int changed = jdbc.update("UPDATE checkout_orders SET status='COMPLETED',paypal_capture_id=? WHERE paypal_order_id=? AND status='CREATED'",
                 captured.path("id").asText(), orderId);
-            if (changed == 1)
+            if (changed == 1) {
                 jdbc.update("UPDATE campaigns SET joined=joined+1 WHERE id=?", campaignId);
+                refundService.enqueueIfGoalReached(campaignId);
+            }
         });
         return completed(orderId,campaignId);
     }
