@@ -1,0 +1,9 @@
+server:
+  port: 8080
+spring:
+  datasource:
+    url: ${CROWDREWARDS_DB_URL:jdbc:sqlite:./crowdrewards.db}
+    driver-class-name: org.sqlite.JDBC
+  sql:
+    init:
+      mode: always
