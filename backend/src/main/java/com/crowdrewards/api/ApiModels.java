@@ -1,6 +1,7 @@
 package com.crowdrewards.api;
 
 import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
 
 public final class ApiModels {
     private ApiModels() {}
@@ -17,16 +18,18 @@ public final class ApiModels {
         @NotBlank @Size(max = 80) String title,
         @Size(max = 500) String description,
         @NotNull @Min(1) @Max(90) Integer discount,
-        @NotNull @Min(2) Integer goal
+        @NotNull @Min(2) Integer goal,
+        @NotNull @DecimalMin("0.01") @DecimalMax("1000000") BigDecimal price
     ) {}
 
     public record UpdateCampaign(
         @NotBlank @Size(max = 80) String title,
         @Size(max = 500) String description,
         @NotNull @Min(1) @Max(90) Integer discount,
-        @NotNull @Min(2) Integer goal
+        @NotNull @Min(2) Integer goal,
+        @NotNull @DecimalMin("0.01") @DecimalMax("1000000") BigDecimal price
     ) {}
 
     public record Campaign(long id, long merchantId, String title,
-                           String description, int discount, int goal, int joined) {}
+                           String description, int discount, int goal, int joined, BigDecimal price) {}
 }
