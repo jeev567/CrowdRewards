@@ -68,10 +68,20 @@ public class PaypalCheckoutController {
         JsonNode response = paypal("POST", "/v2/checkout/orders", payload, "create-" + UUID.randomUUID());
         String orderId = response.path("id").asText("");
         String approval = "";
-        for (JsonNode link : response.path("links"))
-            if ("approve".equals(link.path("rel").asText())) approval = link.path("href").asText("");
+        for (JsonNode link : response.path("links")) {
+            String rel = link.path("rel").asText("");
+            if ("payer-action".equals(rel)) {
+                approval = link.path("href").asText("");
+                break;
+            }
+            if ("approve".equals(rel)) {
+                approval = link.path("href").asText("");
+            }
+        }
         if (orderId.isBlank() || approval.isBlank())
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "PayPal did not provide an approval link");
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                "PayPal did not provide a checkout approval URL (order status: "
+                    + response.path("status").asText("unknown") + ")");
         jdbc.update("INSERT INTO checkout_orders(paypal_order_id,campaign_id,amount_cents,status) VALUES (?,?,?,'CREATED')",
             orderId, request.campaignId(), cents);
         return new OrderResult(orderId, approval);
