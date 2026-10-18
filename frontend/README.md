@@ -1,7 +1,6 @@
-# CrowdRewards React frontend (v0.1)
+# CrowdRewards React frontend (v0.2)
 
-## Run locally
-Requires Node.js 20+.
+Requires Node.js 20+ and the Spring Boot backend running on port 8080.
 
 ```bash
 cd frontend
@@ -9,12 +8,12 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite (typically http://localhost:5173).
+Vite forwards `/api` requests to Spring Boot through `vite.config.js`.
 
 ## Learning React
-- `src/main.jsx`: application entry point and React root.
-- `src/App.jsx`: reusable components, props, state (`useState`), event handlers, lists and forms. Comments explain each concept.
-- `src/styles.css`: design tokens, responsive layout, transitions and animations.
+- `src/main.jsx`: application entry point
+- `src/App.jsx`: components, props, `useState`, `useEffect`, form events, `fetch`, `async/await`, and API error/loading states
+- `src/styles.css`: responsive styling, hover transitions and reduced-motion support
 
-## Scope
-Merchant campaign creation is an in-memory UI demo. Refreshing the page resets campaigns. There is no backend, login, OpenAI call, or PayPal transaction yet. The PayPal name is a styled text placeholder, not an official logo asset. Use approved PayPal brand assets and follow their brand guidelines before production.
+## Limitations
+Development only: merchant creation and campaign creation persist to SQLite, but authentication, AI, PayPal transactions, and ownership checks are not yet implemented. Do not deploy publicly.
