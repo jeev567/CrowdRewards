@@ -24,6 +24,33 @@ public class SqliteMigration {
                     FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
                 )
                 """);
+            jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS campaign_refunds (
+                    paypal_capture_id TEXT PRIMARY KEY,
+                    campaign_id INTEGER NOT NULL,
+                    amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+                    status TEXT NOT NULL,
+                    request_id TEXT NOT NULL UNIQUE,
+                    paypal_refund_id TEXT UNIQUE,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
+                )
+                """);
+            // Recover qualifying captures if the process stopped before enqueueing.
+            jdbc.update("""
+                INSERT OR IGNORE INTO campaign_refunds
+                    (campaign_id, paypal_capture_id, amount_cents, status, request_id)
+                SELECT c.id, o.paypal_capture_id,
+                    (o.amount_cents * c.discount) / 100, 'QUEUED',
+                    'crowdrewards-refund-' || o.paypal_capture_id
+                FROM campaigns c JOIN checkout_orders o ON o.campaign_id = c.id
+                WHERE c.joined >= c.goal AND o.status = 'COMPLETED'
+                  AND o.paypal_capture_id IS NOT NULL
+                  AND (o.amount_cents * c.discount) / 100 > 0
+                """);
         };
     }
 }
