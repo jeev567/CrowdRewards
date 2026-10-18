@@ -1,5 +1,5 @@
 // JSX uses React in scope with the classic transform; useState stores UI state.
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 // Components are reusable pieces of UI. This one shows the two brands.
 // PayPal is displayed as text for the prototype; use approved assets for production.
@@ -28,30 +28,92 @@ function CampaignCard({ campaign }) {
   );
 }
 
-const starterCampaigns = [
-  { id: 1, title: "Weekend Coffee Bundle", description: "Unlock a better price when coffee lovers shop together.", discount: 15, joined: 32, goal: 50 },
-  { id: 2, title: "Wireless Headphones", description: "A group reward for your next audio upgrade.", discount: 20, joined: 18, goal: 40 },
-  { id: 3, title: "Fitness Essentials", description: "Team up to unlock savings on everyday workout gear.", discount: 12, joined: 44, goal: 60 }
-];
-
 export default function App() {
   // useState stores data that can change. Updating state causes React to re-render the UI.
-  const [campaigns, setCampaigns] = useState(starterCampaigns);
+  const [campaigns, setCampaigns] = useState([]);
+  const [merchants, setMerchants] = useState([]);
+  const [merchantId, setMerchantId] = useState("");
+  const [merchantName, setMerchantName] = useState("");
+  const [merchantEmail, setMerchantEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // useEffect runs after the first render. Here it loads saved data from our Java API.
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [campaignResponse, merchantResponse] = await Promise.all([
+          fetch("/api/campaigns"), fetch("/api/merchants")
+        ]);
+        if (!campaignResponse.ok || !merchantResponse.ok) throw new Error("Could not load data. Is Spring Boot running?");
+        const [savedCampaigns, savedMerchants] = await Promise.all([
+          campaignResponse.json(), merchantResponse.json()
+        ]);
+        setCampaigns(savedCampaigns);
+        setMerchants(savedMerchants);
+        if (savedMerchants.length) setMerchantId(String(savedMerchants[0].id));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []); // Empty array means this effect runs on initial mount.
+
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [discount, setDiscount] = useState("10");
   const [goal, setGoal] = useState("25");
 
   // Event handlers run in response to user actions, such as submitting a form.
-  function handleCreate(event) {
-    event.preventDefault(); // Prevents the browser from reloading the page.
-    const cleanTitle = title.trim();
-    const parsedDiscount = Number(discount);
-    const parsedGoal = Number(goal);
-    if (!cleanTitle || !Number.isInteger(parsedDiscount) || parsedDiscount < 1 || parsedDiscount > 90 || !Number.isInteger(parsedGoal) || parsedGoal < 2) return;
-    // Spread syntax (...) creates a new array instead of mutating React state.
-    setCampaigns(previous => [{ id: crypto.randomUUID(), title: cleanTitle, description: "Your new campaign is ready for the next step.", discount: parsedDiscount, joined: 0, goal: parsedGoal }, ...previous]);
-    setTitle(""); setDiscount("10"); setGoal("25"); setShowForm(false);
+  async function handleCreate(event) {
+    event.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      // POST sends JSON to Spring Boot. await pauses this function until the response arrives.
+      const response = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchantId: Number(merchantId), title: title.trim(),
+          description: "Your new group-buying campaign.",
+          discount: Number(discount), goal: Number(goal)
+        })
+      });
+      if (!response.ok) throw new Error("Campaign could not be saved. Check the form and backend.");
+      const created = await response.json();
+      setCampaigns(previous => [created, ...previous]);
+      setTitle(""); setDiscount("10"); setGoal("25"); setShowForm(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleCreateMerchant(event) {
+    event.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const response = await fetch("/api/merchants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: merchantName.trim(), email: merchantEmail.trim() })
+      });
+      if (!response.ok) throw new Error("Could not register merchant. Check the name/email or use another email.");
+      const merchant = await response.json();
+      setMerchants(previous => [merchant, ...previous]);
+      setMerchantId(String(merchant.id));
+      setMerchantName(""); setMerchantEmail("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -63,11 +125,19 @@ export default function App() {
           <div className="hero-visual" aria-label="CrowdRewards and PayPal brand introduction"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="visual-center"><div className="visual-logo">✦</div><strong>CrowdRewards</strong><span className="visual-plus">+</span><strong className="paypal">PayPal</strong><small>Grow together. Reward together.</small></div></div>
         </section>
         <section className="campaign-section" id="campaigns"><div className="section-heading"><div><div className="eyebrow">MERCHANT STUDIO</div><h2>Campaigns</h2><p>Manage your group-buying ideas in one place.</p></div><button className="secondary-button" onClick={() => setShowForm(true)}>+ New campaign</button></div>
-          <div className="campaign-grid">{campaigns.map(campaign => <CampaignCard key={campaign.id} campaign={campaign} />)}</div>
+          {error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}
+          {loading ? <p>Loading campaigns…</p> : campaigns.length === 0 ? <p>No campaigns yet. Register a merchant and create your first campaign.</p> : <div className="campaign-grid">{campaigns.map(campaign => <CampaignCard key={campaign.id} campaign={campaign} />)}</div>}
+          <section className="merchant-panel"><h3>Merchant registration</h3><p>Register a merchant to own new campaigns.</p>
+            <form onSubmit={handleCreateMerchant} className="merchant-form">
+              <label>Merchant name<input required maxLength={120} value={merchantName} onChange={event => setMerchantName(event.target.value)} placeholder="Your store name" /></label>
+              <label>Email<input required type="email" maxLength={254} value={merchantEmail} onChange={event => setMerchantEmail(event.target.value)} placeholder="store@example.com" /></label>
+              <button className="secondary-button" disabled={saving}>Register merchant</button>
+            </form>
+          </section>
         </section>
       </main>
       <footer>© {new Date().getFullYear()} CrowdRewards · PayPal Sandbox integration coming in a later milestone.</footer>
-      {showForm && <div className="modal-backdrop" onClick={() => setShowForm(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onClick={event => event.stopPropagation()}><div className="modal-heading"><h2 id="form-title">New campaign</h2><button className="icon-button" aria-label="Close form" onClick={() => setShowForm(false)}>×</button></div><p>Create a demo campaign. Data stays in memory until the page reloads.</p><form onSubmit={handleCreate}><label>Campaign name<input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Weekend Coffee Bundle" /></label><label>Discount percentage<input required type="number" min="1" max="90" step="1" value={discount} onChange={event => setDiscount(event.target.value)} /></label><label>Group target<input required type="number" min="2" step="1" value={goal} onChange={event => setGoal(event.target.value)} /></label><button className="primary-button" type="submit">Create campaign →</button></form></section></div>}
+      {showForm && <div className="modal-backdrop" onClick={() => setShowForm(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onClick={event => event.stopPropagation()}><div className="modal-heading"><h2 id="form-title">New campaign</h2><button className="icon-button" aria-label="Close form" onClick={() => setShowForm(false)}>×</button></div><p>Create a demo campaign. Campaigns are saved to SQLite through Spring Boot.</p><form onSubmit={handleCreate}><label>Merchant<select required value={merchantId} onChange={event => setMerchantId(event.target.value)}><option value="">Select merchant</option>{merchants.map(merchant => <option key={merchant.id} value={merchant.id}>{merchant.name}</option>)}</select></label><label>Campaign name<input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Weekend Coffee Bundle" /></label><label>Discount percentage<input required type="number" min="1" max="90" step="1" value={discount} onChange={event => setDiscount(event.target.value)} /></label><label>Group target<input required type="number" min="2" step="1" value={goal} onChange={event => setGoal(event.target.value)} /></label><button className="primary-button" type="submit" disabled={saving || !merchantId}>{saving ? "Saving…" : "Create campaign →"}</button></form></section></div>}
     </div>
   );
 }
