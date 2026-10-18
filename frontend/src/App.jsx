@@ -1,4 +1,5 @@
-import { useState } from "react";
+// JSX uses React in scope with the classic transform; useState stores UI state.
+import React, { useState } from "react";
 
 // Components are reusable pieces of UI. This one shows the two brands.
 // PayPal is displayed as text for the prototype; use approved assets for production.
