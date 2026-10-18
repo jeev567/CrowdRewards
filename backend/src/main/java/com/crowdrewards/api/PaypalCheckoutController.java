@@ -30,8 +30,8 @@ public class PaypalCheckoutController {
 
     public PaypalCheckoutController(JdbcTemplate jdbc, ObjectMapper mapper,
             org.springframework.transaction.PlatformTransactionManager transactionManager,
-            @Value("${paypal.client-id:}") String clientId,
-            @Value("${paypal.client-secret:}") String secret,
+            @Value("${paypal.sandbox.client-id:}") String clientId,
+            @Value("${paypal.sandbox.client-secret:}") String secret,
             @Value("${paypal.base-url:https://api-m.sandbox.paypal.com}") String baseUrl,
             @Value("${paypal.return-url:http://localhost:5173/}") String returnUrl) {
         this.jdbc = jdbc; this.mapper = mapper;
