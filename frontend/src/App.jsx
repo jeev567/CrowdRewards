@@ -188,7 +188,7 @@ export default function App() {
         </section>
       </main>
       <footer>© {new Date().getFullYear()} CrowdRewards · PayPal Sandbox integration coming in a later milestone.</footer>
-      {showForm && <div className="modal-backdrop" onClick={() => setShowForm(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onClick={event => event.stopPropagation()}><div className="modal-heading"><h2 id="form-title">{editingId ? "Edit campaign" : "New campaign"}</h2><button className="icon-button" aria-label="Close form" onClick={() => setShowForm(false)}>×</button></div><p>Create a demo campaign. Campaigns are saved to SQLite through Spring Boot.</p>
+      {showForm && <div className="modal-backdrop" onClick={() => setShowForm(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onClick={event => event.stopPropagation()}><div className="modal-heading"><h2 id="form-title">{editingId ? "Edit campaign" : "New campaign"}</h2><button className="icon-button" aria-label="Close form" onClick={() => setShowForm(false)}>×</button></div><p>Create a demo campaign. Campaigns are saved to SQLite through Spring Boot.</p>{error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}
         {!editingId && <div className="ai-architect">
           <h3>✦ AI Campaign Architect</h3>
           <p>Describe your product and let AI draft a campaign. Review the numbers before saving.</p>
