@@ -68,14 +68,20 @@ public class CampaignController {
     @PutMapping("/{id}")
     public Campaign update(@PathVariable long id, @Valid @RequestBody UpdateCampaign request) {
         Campaign existing = get(id);
-        if (existing.joined() > 0)
+        if (existing.joined() > 0 || hasCheckoutOrders(id))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign with participants cannot be edited");
         int changed = jdbc.update(
-            "UPDATE campaigns SET title = ?, description = ?, discount = ?, goal = ?, price_cents = ? WHERE id = ? AND joined = 0",
+            "UPDATE campaigns SET title = ?, description = ?, discount = ?, goal = ?, price_cents = ? WHERE id = ? AND joined = 0 AND NOT EXISTS (SELECT 1 FROM checkout_orders WHERE campaign_id = campaigns.id)",
             request.title().trim(), request.description() == null ? "" : request.description().trim(),
             request.discount(), request.goal(), cents(request.price()), id);
         if (changed == 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign changed; retry");
         return get(id);
+    }
+
+    private boolean hasCheckoutOrders(long id) {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM checkout_orders WHERE campaign_id = ?", Integer.class, id);
+        return count != null && count > 0;
     }
 
     private static long cents(java.math.BigDecimal price) {
@@ -85,7 +91,7 @@ public class CampaignController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable long id) {
-        int deleted = jdbc.update("DELETE FROM campaigns WHERE id = ? AND joined = 0", id);
+        int deleted = jdbc.update("DELETE FROM campaigns WHERE id = ? AND joined = 0 AND NOT EXISTS (SELECT 1 FROM checkout_orders WHERE campaign_id = campaigns.id)", id);
         if (deleted == 0) {
             get(id);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign with participants cannot be deleted");
