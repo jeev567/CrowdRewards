@@ -48,4 +48,41 @@ public class CampaignController {
                 request.merchantId(), request.title().trim(), description,
                 request.discount(), request.goal(), 0));
     }
+    @GetMapping("/{id}")
+    public Campaign get(@PathVariable long id) {
+        return jdbc.query("SELECT * FROM campaigns WHERE id = ?", rs -> {
+            if (!rs.next()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found");
+            return mapCampaign(rs);
+        }, id);
+    }
+
+    private Campaign mapCampaign(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new Campaign(rs.getLong("id"), rs.getLong("merchant_id"),
+            rs.getString("title"), rs.getString("description"),
+            rs.getInt("discount"), rs.getInt("goal"), rs.getInt("joined"));
+    }
+
+    @PutMapping("/{id}")
+    public Campaign update(@PathVariable long id, @Valid @RequestBody UpdateCampaign request) {
+        Campaign existing = get(id);
+        if (existing.joined() > 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign with participants cannot be edited");
+        int changed = jdbc.update(
+            "UPDATE campaigns SET title = ?, description = ?, discount = ?, goal = ? WHERE id = ? AND joined = 0",
+            request.title().trim(), request.description() == null ? "" : request.description().trim(),
+            request.discount(), request.goal(), id);
+        if (changed == 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign changed; retry");
+        return get(id);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable long id) {
+        int deleted = jdbc.update("DELETE FROM campaigns WHERE id = ? AND joined = 0", id);
+        if (deleted == 0) {
+            get(id);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign with participants cannot be deleted");
+        }
+        return ResponseEntity.noContent().build();
+    }
+
 }
