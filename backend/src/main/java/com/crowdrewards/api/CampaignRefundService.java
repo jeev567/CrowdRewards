@@ -7,10 +7,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -57,6 +53,17 @@ public class CampaignRefundService {
               AND o.paypal_capture_id IS NOT NULL
               AND (o.amount_cents * c.discount) / 100 > 0
             """, campaignId);
+    }
+
+    public java.util.List<Map<String, Object>> refundStatuses(long campaignId) {
+        return jdbc.query("""
+            SELECT paypal_capture_id, amount_cents, status, paypal_refund_id
+            FROM campaign_refunds WHERE campaign_id=? ORDER BY created_at
+            """, (rs, i) -> Map.<String, Object>of(
+                "captureId", rs.getString(1),
+                "amount", BigDecimal.valueOf(rs.getLong(2), 2).toPlainString(),
+                "status", rs.getString(3),
+                "refundId", rs.getString(4) == null ? "" : rs.getString(4)), campaignId);
     }
 
     // Retries are serialized by a database claim. Reuse the same PayPal-Request-Id
