@@ -11,3 +11,8 @@ spring:
 openai:
   api-key: ${OPENAI_API_KEY:}
   model: ${OPENAI_MODEL:gpt-4.1-mini}
+
+paypal:
+  client-id: ${PAYPAL_SANDBOX_CLIENT_ID:}
+  client-secret: ${PAYPAL_SANDBOX_CLIENT_SECRET:}
+  base-url: https://api-m.sandbox.paypal.com
