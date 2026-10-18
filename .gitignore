@@ -9,3 +9,17 @@ build/
 *.db-wal
 *.db-shm
 .DS_Store
+
+# Local Spring Boot overrides (may contain API keys)
+**/application-local.yml
+**/application-local.yaml
+**/application-local.properties
+
+# Build artifacts and local credentials
+**/build/
+**/node_modules/
+**/dist/
+*.sqlite
+*.sqlite3
+*.pem
+*.key
