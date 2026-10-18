@@ -26,7 +26,8 @@ public final class ApiModels {
         @NotBlank @Size(max = 80) String title,
         @Size(max = 500) String description,
         @NotNull @Min(1) @Max(90) Integer discount,
-        @NotNull @Min(2) Integer goal
+        @NotNull @Min(2) Integer goal,
+        @NotNull @DecimalMin("0.01") @DecimalMax("1000000") BigDecimal price
     ) {}
 
     public record Campaign(long id, long merchantId, String title,
