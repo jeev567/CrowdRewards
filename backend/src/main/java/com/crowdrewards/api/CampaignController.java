@@ -21,7 +21,8 @@ public class CampaignController {
         return jdbc.query("SELECT * FROM campaigns ORDER BY id DESC", (rs, row) ->
             new Campaign(rs.getLong("id"), rs.getLong("merchant_id"),
                 rs.getString("title"), rs.getString("description"),
-                rs.getInt("discount"), rs.getInt("goal"), rs.getInt("joined")));
+                rs.getInt("discount"), rs.getInt("goal"), rs.getInt("joined"),
+                java.math.BigDecimal.valueOf(rs.getLong("price_cents"), 2)));
     }
 
     @PostMapping
@@ -34,19 +35,20 @@ public class CampaignController {
         String description = request.description() == null ? "" : request.description().trim();
         jdbc.update(connection -> {
             var ps = connection.prepareStatement(
-                "INSERT INTO campaigns(merchant_id,title,description,discount,goal) VALUES (?,?,?,?,?)",
+                "INSERT INTO campaigns(merchant_id,title,description,discount,goal,price_cents) VALUES (?,?,?,?,?,?)",
                 Statement.RETURN_GENERATED_KEYS);
             ps.setLong(1, request.merchantId());
             ps.setString(2, request.title().trim());
             ps.setString(3, description);
             ps.setInt(4, request.discount());
             ps.setInt(5, request.goal());
+            ps.setLong(6, cents(request.price()));
             return ps;
         }, holder);
         return ResponseEntity.status(HttpStatus.CREATED).body(
             new Campaign(Objects.requireNonNull(holder.getKey()).longValue(),
                 request.merchantId(), request.title().trim(), description,
-                request.discount(), request.goal(), 0));
+                request.discount(), request.goal(), 0, request.price()));
     }
     @GetMapping("/{id}")
     public Campaign get(@PathVariable long id) {
@@ -59,7 +61,8 @@ public class CampaignController {
     private Campaign mapCampaign(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new Campaign(rs.getLong("id"), rs.getLong("merchant_id"),
             rs.getString("title"), rs.getString("description"),
-            rs.getInt("discount"), rs.getInt("goal"), rs.getInt("joined"));
+            rs.getInt("discount"), rs.getInt("goal"), rs.getInt("joined"),
+            java.math.BigDecimal.valueOf(rs.getLong("price_cents"), 2));
     }
 
     @PutMapping("/{id}")
@@ -68,11 +71,16 @@ public class CampaignController {
         if (existing.joined() > 0)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign with participants cannot be edited");
         int changed = jdbc.update(
-            "UPDATE campaigns SET title = ?, description = ?, discount = ?, goal = ? WHERE id = ? AND joined = 0",
+            "UPDATE campaigns SET title = ?, description = ?, discount = ?, goal = ?, price_cents = ? WHERE id = ? AND joined = 0",
             request.title().trim(), request.description() == null ? "" : request.description().trim(),
-            request.discount(), request.goal(), id);
+            request.discount(), request.goal(), cents(request.price()), id);
         if (changed == 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign changed; retry");
         return get(id);
+    }
+
+    private static long cents(java.math.BigDecimal price) {
+        try { return price.movePointRight(2).longValueExact(); }
+        catch (ArithmeticException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Price must have at most two decimal places"); }
     }
 
     @DeleteMapping("/{id}")
