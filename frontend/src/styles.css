@@ -4,3 +4,9 @@
 
 .campaign-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
 .modal textarea { width: 100%; min-height: 90px; resize: vertical; font: inherit; padding: 12px; border: 1px solid #d5d9e2; border-radius: 10px; box-sizing: border-box; }
+
+.ai-architect { padding: 18px; border: 1px solid #d9dff4; background: #f7f9ff; border-radius: 14px; margin: 16px 0; display: grid; gap: 10px; }
+.ai-architect h3, .ai-architect p { margin: 0; }
+.ai-architect label { display: grid; gap: 5px; }
+.ai-architect input { width: 100%; box-sizing: border-box; }
+.ai-rationale { font-size: 0.9rem; line-height: 1.5; }
