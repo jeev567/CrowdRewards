@@ -50,9 +50,9 @@ public class PaypalCheckoutController {
                 "joined", rs.getInt(3), "goal", rs.getInt(4)), request.campaignId());
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found");
         var campaign = rows.get(0);
-        long cents = (long) campaign.get("price");
+        long cents = ((Number) campaign.get("price")).longValue();
         if (cents <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign needs a price before checkout");
-        if ((int)campaign.get("joined") >= (int)campaign.get("goal"))
+        if (((Number) campaign.get("joined")).intValue() >= ((Number) campaign.get("goal")).intValue())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Campaign goal already reached");
         String price = BigDecimal.valueOf(cents, 2).toPlainString();
         String payload = mapper.writeValueAsString(Map.of(
@@ -84,7 +84,7 @@ public class PaypalCheckoutController {
             (rs,n) -> Map.of("campaignId",rs.getLong(1),"cents",rs.getLong(2),"status",rs.getString(3)), orderId);
         if (orders.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
         var order = orders.get(0);
-        long campaignId = (long)order.get("campaignId");
+        long campaignId = ((Number) order.get("campaignId")).longValue();
         if ("COMPLETED".equals(order.get("status"))) return completed(orderId,campaignId);
 
         // A stable request ID allows PayPal to deduplicate retries after a network failure.
@@ -98,7 +98,7 @@ public class PaypalCheckoutController {
                 || !orderId.equals(result.path("id").asText())
                 || !String.valueOf(campaignId).equals(purchase.path("reference_id").asText())
                 || !"USD".equals(captured.path("amount").path("currency_code").asText())
-                || BigDecimal.valueOf((long)order.get("cents"),2).compareTo(
+                || BigDecimal.valueOf(((Number) order.get("cents")).longValue(),2).compareTo(
                     new BigDecimal(captured.path("amount").path("value").asText("0"))) != 0)
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "PayPal capture verification failed");
 
