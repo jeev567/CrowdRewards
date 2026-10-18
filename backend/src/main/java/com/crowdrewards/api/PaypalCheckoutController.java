@@ -26,16 +26,17 @@ public class PaypalCheckoutController {
     private final ObjectMapper mapper;
     private final TransactionTemplate tx;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
-    private final String clientId, secret, baseUrl;
+    private final String clientId, secret, baseUrl, returnUrl;
 
     public PaypalCheckoutController(JdbcTemplate jdbc, ObjectMapper mapper,
             org.springframework.transaction.PlatformTransactionManager transactionManager,
             @Value("${paypal.client-id:}") String clientId,
             @Value("${paypal.client-secret:}") String secret,
-            @Value("${paypal.base-url:https://api-m.sandbox.paypal.com}") String baseUrl) {
+            @Value("${paypal.base-url:https://api-m.sandbox.paypal.com}") String baseUrl,
+            @Value("${paypal.return-url:http://localhost:5173/}") String returnUrl) {
         this.jdbc = jdbc; this.mapper = mapper;
         this.tx = new TransactionTemplate(transactionManager);
-        this.clientId = clientId; this.secret = secret; this.baseUrl = baseUrl;
+        this.clientId = clientId; this.secret = secret; this.baseUrl = baseUrl; this.returnUrl = returnUrl;
     }
 
     public record CreateOrderRequest(long campaignId) {}
@@ -57,6 +58,8 @@ public class PaypalCheckoutController {
         String price = BigDecimal.valueOf(cents, 2).toPlainString();
         String payload = mapper.writeValueAsString(Map.of(
             "intent", "CAPTURE",
+            "payment_source", Map.of("paypal", Map.of("experience_context", Map.of(
+                "return_url", returnUrl, "cancel_url", returnUrl))),
             "purchase_units", new Object[]{Map.of("reference_id", String.valueOf(request.campaignId()),
                 "description", campaign.get("title"),
                 "amount", Map.of("currency_code", "USD", "value", price))}
