@@ -72,12 +72,50 @@ export default function App() {
   const [price, setPrice] = useState("");
   const [joiningId, setJoiningId] = useState(null);
   const [notice, setNotice] = useState("");
+  const [refundsByCampaign, setRefundsByCampaign] = useState({});
+  const [refundErrors, setRefundErrors] = useState({});
+  const [dashboardBusy, setDashboardBusy] = useState(false);
   const [aiProduct, setAiProduct] = useState("");
   const [aiPrice, setAiPrice] = useState("");
   const [aiAudience, setAiAudience] = useState("");
   const [aiNotes, setAiNotes] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiRationale, setAiRationale] = useState("");
+
+  async function refreshDashboard() {
+    setDashboardBusy(true);
+    try {
+      const response = await fetch("/api/campaigns");
+      if (!response.ok) throw new Error("Unable to refresh campaigns");
+      const items = await response.json();
+      setCampaigns(items);
+      const results = await Promise.all(items.map(async campaign => {
+        try {
+          const res = await fetch(`/api/campaigns/${campaign.id}/refunds`);
+          if (!res.ok) throw new Error(`Refund API returned ${res.status}`);
+          const data = await res.json();
+          if (!Array.isArray(data)) throw new Error("Unexpected refund response");
+          return { id: campaign.id, refunds: data };
+        } catch (err) {
+          return { id: campaign.id, error: err.message };
+        }
+      }));
+      setRefundsByCampaign(Object.fromEntries(results.filter(item => !item.error).map(item => [item.id, item.refunds])));
+      setRefundErrors(Object.fromEntries(results.filter(item => item.error).map(item => [item.id, item.error])));
+    } catch (err) { setError(err.message); }
+    finally { setDashboardBusy(false); }
+  }
+
+  useEffect(() => {
+    if (!loading) refreshDashboard();
+  }, [loading]);
+
+  const dashboardRefunds = Object.values(refundsByCampaign).flat();
+  const completedRefunds = dashboardRefunds.filter(item => item.status === "COMPLETED");
+  const refundedTotal = completedRefunds.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const completedCampaigns = campaigns.filter(item => Number(item.joined) >= Number(item.goal) && Number(item.goal) > 0).length;
+  const purchases = campaigns.reduce((sum, item) => sum + Number(item.joined || 0), 0);
+  const estimatedGross = campaigns.reduce((sum, item) => sum + Number(item.joined || 0) * Number(item.price || 0), 0);
 
   // Event handlers run in response to user actions, such as submitting a form.
   function openCreate() {
@@ -212,6 +250,25 @@ export default function App() {
         <section className="hero">
           <div className="hero-copy"><div className="pill">✦ AI-powered group buying</div><h1>Better deals.<br/><span className="gradient-text">Together.</span></h1><p>Turn every purchase into a shared win. Create group campaigns, grow your community, and reward everyone when goals are reached.</p><button className="primary-button" onClick={openCreate}>Create a campaign <span aria-hidden="true">→</span></button><div className="hero-note">Sandbox payments only · No real money</div></div>
           <div className="hero-visual" aria-label="CrowdRewards and PayPal brand introduction"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="visual-center"><div className="visual-logo">✦</div><strong>CrowdRewards</strong><span className="visual-plus">+</span><strong className="paypal">PayPal</strong><small>Grow together. Reward together.</small></div></div>
+        </section>
+        <section className="campaign-section" id="dashboard" aria-label="Merchant dashboard">
+          <div className="section-heading"><div><div className="eyebrow">MERCHANT ANALYTICS</div><h2>Dashboard</h2><p>Live campaign progress and PayPal Sandbox refund records.</p></div><button className="secondary-button" onClick={refreshDashboard} disabled={dashboardBusy}>{dashboardBusy ? "Refreshing…" : "Refresh dashboard"}</button></div>
+          <div className="campaign-grid">
+            {[["Campaigns", campaigns.length], ["Purchases recorded", purchases], ["Targets reached", completedCampaigns], ["Estimated gross (USD)", "$" + estimatedGross.toFixed(2)], ["Completed refunds (USD)", "$" + refundedTotal.toFixed(2)]].map(([label, value]) => <article className="campaign-card" key={label}><div className="card-body"><div className="eyebrow">{label}</div><h2>{value}</h2></div></article>)}
+          </div>
+          <p style={{fontSize:"0.85rem"}}>Gross is estimated from campaign price × recorded purchases; it is not a PayPal settlement or net-revenue report.</p>
+          {Object.keys(refundErrors).length > 0 && <p role="alert">Refund details unavailable for some campaigns. Check the backend and retry.</p>}
+          {campaigns.map(campaign => {
+            const refunds = refundsByCampaign[campaign.id] || [];
+            const progress = Number(campaign.goal) > 0 ? Math.min(100, Math.round(100 * Number(campaign.joined || 0) / Number(campaign.goal))) : 0;
+            return <article className="campaign-card" key={campaign.id} style={{marginTop:"1rem"}}><div className="card-body">
+              <div className="card-top"><span className="eyebrow">CAMPAIGN #{campaign.id}</span><strong>{progress >= 100 ? "Target reached" : "Active"}</strong></div>
+              <h3>{campaign.title}</h3><div className="progress-label"><span>{campaign.joined} / {campaign.goal} purchases</span><strong>{progress}%</strong></div>
+              <div className="progress-track" role="progressbar" aria-label={campaign.title + " progress"} aria-valuenow={progress} aria-valuemin="0" aria-valuemax="100"><div className="progress-fill" style={{width: progress + "%"}} /></div>
+              <h4>Refund activity</h4>
+              {refundErrors[campaign.id] ? <p role="alert">{refundErrors[campaign.id]}</p> : refunds.length === 0 ? <p>No refunds recorded.</p> : <div style={{overflowX:"auto"}}><table style={{width:"100%",textAlign:"left"}}><thead><tr><th>Refund ID</th><th>Amount</th><th>Status</th></tr></thead><tbody>{refunds.map((refund, index) => <tr key={refund.refundId || index}><td style={{wordBreak:"break-all"}}>{refund.refundId || "Pending"}</td><td>${Number(refund.amount || 0).toFixed(2)}</td><td>{refund.status}</td></tr>)}</tbody></table></div>}
+            </div></article>;
+          })}
         </section>
         <section className="campaign-section" id="campaigns"><div className="section-heading"><div><div className="eyebrow">MERCHANT STUDIO</div><h2>Campaigns</h2><p>Manage your group-buying ideas in one place.</p></div><button className="secondary-button" onClick={openCreate}>+ New campaign</button></div>
           {error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}{notice && <p role="status">{notice}</p>}
