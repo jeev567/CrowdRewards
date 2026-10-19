@@ -13,7 +13,7 @@ function BrandHeader() {
 }
 
 // Props are values passed from a parent component into a child component.
-function CampaignCard({ campaign, onEdit, onDelete, onJoin, joining }) {
+function CampaignCard({ campaign, onEdit, onDelete, onShare, onJoin, joining }) {
   const percent = Math.min(100, Math.round((campaign.joined / campaign.goal) * 100));
   return (
     <article className="campaign-card">
@@ -23,7 +23,7 @@ function CampaignCard({ campaign, onEdit, onDelete, onJoin, joining }) {
         <h3>{campaign.title}</h3><p>{campaign.description}</p><p><strong>{Number(campaign.price).toFixed(2)} USD</strong>{campaign.price <= 0 ? " · Set a price to enable checkout" : ""}</p>
         <div className="progress-label"><span>{campaign.joined} of {campaign.goal} joined</span><strong>{percent}%</strong></div>
         <div className="progress-track" role="progressbar" aria-valuenow={percent} aria-valuemin="0" aria-valuemax="100" aria-label="Campaign progress"><div className="progress-fill" style={{ width: percent + "%" }} /></div>
-        <div className="campaign-actions"><button className="primary-button" disabled={joining || Number(campaign.price) <= 0 || campaign.joined >= campaign.goal} onClick={() => onJoin(campaign)}>{joining ? "Redirecting…" : "Join with PayPal"}</button><button className="secondary-button" onClick={() => onEdit(campaign)} disabled={campaign.joined > 0}>Edit</button><button className="secondary-button" onClick={() => onDelete(campaign)} disabled={campaign.joined > 0}>Delete</button></div>
+        <div className="campaign-actions"><button className="primary-button" disabled={joining || Number(campaign.price) <= 0 || campaign.joined >= campaign.goal} onClick={() => onJoin(campaign)}>{joining ? "Redirecting…" : "Join with PayPal"}</button><button className="secondary-button" onClick={() => onShare(campaign)}>Share campaign</button><button className="secondary-button" onClick={() => onEdit(campaign)} disabled={campaign.joined > 0}>Edit</button><button className="secondary-button" onClick={() => onDelete(campaign)} disabled={campaign.joined > 0}>Delete</button></div>
       </div>
     </article>
   );
@@ -85,6 +85,13 @@ export default function MerchantApp() {
   const [aiNotes, setAiNotes] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiRationale, setAiRationale] = useState("");
+  const [shareCampaign, setShareCampaign] = useState(null);
+  const [copyStatus, setCopyStatus] = useState("");
+  const campaignUrl = shareCampaign ? new URL("/campaigns/" + shareCampaign.id, window.location.origin).href : "";
+  async function copyCampaignUrl() {
+    try { await navigator.clipboard.writeText(campaignUrl); setCopyStatus("Link copied!"); }
+    catch { setCopyStatus("Copy the link from the field below."); }
+  }
 
   async function refreshDashboard() {
     setDashboardBusy(true);
@@ -302,7 +309,7 @@ export default function MerchantApp() {
             const progress = Number(campaign.goal) > 0 ? Math.min(100, Math.round(100 * Number(campaign.joined || 0) / Number(campaign.goal))) : 0;
             return <article className="campaign-card" key={campaign.id} style={{marginTop:"1rem"}}><div className="card-body">
               <div className="card-top"><span className="eyebrow">CAMPAIGN #{campaign.id}</span><strong>{lifecycleByCampaign[campaign.id]?.state?.replaceAll("_", " ") || (progress >= 100 ? "Target reached" : "Active")}</strong></div>
-              <h3>{campaign.title}</h3><div className="progress-label"><span>{campaign.joined} / {campaign.goal} purchases</span><strong>{progress}%</strong></div>
+              <h3>{campaign.title}</h3><button className="secondary-button" onClick={() => { setShareCampaign(campaign); setCopyStatus(""); }}>Share campaign ↗</button><div className="progress-label"><span>{campaign.joined} / {campaign.goal} purchases</span><strong>{progress}%</strong></div>
               <div className="progress-track" role="progressbar" aria-label={campaign.title + " progress"} aria-valuenow={progress} aria-valuemin="0" aria-valuemax="100"><div className="progress-fill" style={{width: progress + "%"}} /></div>
               <h4>Refund activity</h4>
               {refundErrors[campaign.id] ? <p role="alert">{refundErrors[campaign.id]}</p> : refunds.length === 0 ? <p>No refunds recorded.</p> : <div style={{overflowX:"auto"}}><table style={{width:"100%",textAlign:"left"}}><thead><tr><th>Refund ID</th><th>Amount</th><th>Status</th></tr></thead><tbody>{refunds.map((refund, index) => <tr key={refund.refundId || index}><td style={{wordBreak:"break-all"}}>{refund.refundId || "Pending"}</td><td>${Number(refund.amount || 0).toFixed(2)}</td><td>{refund.status}</td></tr>)}</tbody></table></div>}
@@ -311,7 +318,7 @@ export default function MerchantApp() {
         </section>
         <section className="campaign-section" id="campaigns"><div className="section-heading"><div><div className="eyebrow">MERCHANT STUDIO</div><h2>Campaigns</h2><p>Manage your group-buying ideas in one place.</p></div><button className="secondary-button" onClick={openCreate}>+ New campaign</button></div>
           {error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}{notice && <p role="status">{notice}</p>}
-          {loading ? <p>Loading campaigns…</p> : campaigns.length === 0 ? <p>No campaigns yet. Register a merchant and create your first campaign.</p> : <div className="campaign-grid">{campaigns.map(campaign => <CampaignCard key={campaign.id} campaign={campaign} onEdit={openEdit} onDelete={handleDelete} onJoin={handleJoin} joining={joiningId === campaign.id} />)}</div>}
+          {loading ? <p>Loading campaigns…</p> : campaigns.length === 0 ? <p>No campaigns yet. Register a merchant and create your first campaign.</p> : <div className="campaign-grid">{campaigns.map(campaign => <CampaignCard key={campaign.id} campaign={campaign} onEdit={openEdit} onDelete={handleDelete} onJoin={handleJoin} joining={joiningId === campaign.id} onShare={item => { setShareCampaign(item); setCopyStatus(""); }} />)}</div>}
           <section className="merchant-panel"><h3>Merchant registration</h3><p>Register a merchant to own new campaigns.</p>
             <form onSubmit={handleCreateMerchant} className="merchant-form">
               <label>Merchant name<input required maxLength={120} value={merchantName} onChange={event => setMerchantName(event.target.value)} placeholder="Your store name" /></label>
@@ -322,6 +329,7 @@ export default function MerchantApp() {
         </section>
       </main>
       <footer>© {new Date().getFullYear()} CrowdRewards · PayPal Sandbox demo only.</footer>
+      {shareCampaign && <div className="modal-backdrop" onClick={() => setShareCampaign(null)}><section className="modal share-modal" role="dialog" aria-modal="true" aria-labelledby="share-title" onClick={event => event.stopPropagation()}><div className="modal-heading"><h2 id="share-title">Share campaign</h2><button className="icon-button" aria-label="Close share dialog" onClick={() => setShareCampaign(null)}>×</button></div><p><strong>{shareCampaign.title}</strong></p><p>Send this link to customers to open the campaign details and PayPal checkout.</p><label>Customer campaign link<input aria-label="Customer campaign link" readOnly value={campaignUrl} onFocus={event => event.target.select()} /></label><div className="campaign-actions"><button className="primary-button" onClick={copyCampaignUrl}>Copy link</button><a className="secondary-button" href={campaignUrl} target="_blank" rel="noopener noreferrer">Open customer view ↗</a></div>{copyStatus && <p role="status">{copyStatus}</p>}</section></div>}
       {showForm && <div className="modal-backdrop" onClick={() => setShowForm(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onClick={event => event.stopPropagation()}><div className="modal-heading"><h2 id="form-title">{editingId ? "Edit campaign" : "New campaign"}</h2><button className="icon-button" aria-label="Close form" onClick={() => setShowForm(false)}>×</button></div><p>Create a demo campaign. Campaigns are saved to SQLite through Spring Boot.</p>{error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}
         {!editingId && <div className="ai-architect">
           <h3>✦ AI Campaign Architect</h3>
