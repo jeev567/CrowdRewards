@@ -100,6 +100,14 @@ public class PaypalCheckoutController {
         long campaignId = ((Number) order.get("campaignId")).longValue();
         if ("COMPLETED".equals(order.get("status"))) return completed(orderId,campaignId);
 
+        // Reject late approvals after the campaign has filled. Concurrent captures
+        // can still race; production needs capacity reservations and reconciliation.
+        Integer remaining = jdbc.queryForObject(
+            "SELECT goal - joined FROM campaigns WHERE id=?", Integer.class, campaignId);
+        if (remaining == null || remaining <= 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Campaign target already reached; payment not captured");
+
         // A stable request ID allows PayPal to deduplicate retries after a network failure.
         JsonNode result = paypal("POST", "/v2/checkout/orders/" + orderId + "/capture", "{}",
             "capture-" + orderId);
