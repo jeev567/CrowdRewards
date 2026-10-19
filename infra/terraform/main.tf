@@ -13,7 +13,7 @@ data "aws_ami" "al2023" {
 
 resource "aws_security_group" "demo" {
   name_prefix = "crowdrewards-demo-"
-  description = "Restricted CrowdRewards hackathon demo traffic"
+  description = "CrowdRewards only - separate from DealSeal security groups"
   vpc_id      = var.vpc_id
 
   dynamic "ingress" {
@@ -96,5 +96,5 @@ resource "aws_instance" "demo" {
     delete_on_termination = false
   }
 
-  tags = { Name = "crowdrewards-hackathon-demo" }
+  tags = { Name = "crowdrewards-hackathon-demo", Application = "CrowdRewards" }
 }
