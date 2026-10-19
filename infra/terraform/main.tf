@@ -98,3 +98,13 @@ resource "aws_instance" "demo" {
 
   tags = { Name = "crowdrewards-hackathon-demo", Application = "CrowdRewards" }
 }
+
+# HTTPS remains restricted until merchant/admin authentication is implemented.
+resource "aws_vpc_security_group_ingress_rule" "https" {
+  security_group_id = aws_security_group.demo.id
+  description       = "CrowdRewards HTTPS from trusted IP only"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = "187.15.155.248/32"
+}
