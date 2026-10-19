@@ -106,5 +106,5 @@ resource "aws_vpc_security_group_ingress_rule" "https" {
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
-  cidr_ipv4         = "187.15.155.248/32"
+  cidr_ipv4         = "136.38.24.101/32"
 }
