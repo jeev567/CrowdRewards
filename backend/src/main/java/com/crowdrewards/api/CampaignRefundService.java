@@ -73,7 +73,9 @@ public class CampaignRefundService {
         var pending = jdbc.query("""
             SELECT paypal_capture_id, amount_cents, request_id, paypal_refund_id, status
             FROM campaign_refunds
-            WHERE status IN ('QUEUED','RETRY','PENDING')
+            WHERE status IN ('QUEUED','PENDING')
+               OR (status = 'RETRY' AND attempts < 8
+                   AND datetime(updated_at, '+' || MIN(300, 5 * (1 << MIN(attempts, 6))) || ' seconds') <= datetime('now'))
                OR (status = 'PROCESSING' AND datetime(updated_at) < datetime('now','-3 minutes'))
             ORDER BY created_at LIMIT 25
             """, (rs, i) -> new RefundWork(rs.getString(1), rs.getLong(2),
@@ -109,7 +111,7 @@ public class CampaignRefundService {
             } catch (Exception ex) {
                 // Do not log credentials or the full PayPal response.
                 jdbc.update("""
-                    UPDATE campaign_refunds SET status='RETRY', attempts=attempts+1,
+                    UPDATE campaign_refunds SET status=CASE WHEN attempts+1 >= 8 THEN 'NEEDS_ATTENTION' ELSE 'RETRY' END, attempts=attempts+1,
                         last_error=?, updated_at=CURRENT_TIMESTAMP
                     WHERE paypal_capture_id=?
                     """, ex.getClass().getSimpleName(), item.captureId());
