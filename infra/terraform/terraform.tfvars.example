@@ -1,8 +1,8 @@
-aws_region        = "us-east-1"
+aws_region        = "us-west-2"
 instance_type     = "t3.small"
 root_volume_gb    = 20
-vpc_id            = "vpc-REPLACE_ME"
-subnet_id         = "subnet-REPLACE_ME"
+vpc_id            = "vpc-019341a148043da19"
+subnet_id         = "subnet-04b32832073263b34"
 # Replace with YOUR current trusted public IP/CIDR, never 0.0.0.0/0 for an unauthenticated demo.
 http_allowed_cidr = "203.0.113.5/32"
 # Optional. SSH access is disabled if omitted. AWS Systems Manager is preferred.
