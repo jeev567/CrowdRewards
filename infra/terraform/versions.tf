@@ -3,13 +3,14 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = ">= 6.23.0, < 7.0.0"
     }
   }
 }
 
 provider "aws" {
-  region = var.aws_region
+  region  = var.aws_region
+  profile = "dealseal-admin"
   default_tags {
     tags = {
       Project     = "CrowdRewards"
