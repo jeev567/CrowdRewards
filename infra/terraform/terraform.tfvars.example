@@ -8,3 +8,6 @@ http_allowed_cidr = "187.15.155.248/32"
 # Optional. SSH access is disabled if omitted. AWS Systems Manager is preferred.
 ssh_allowed_cidr  = ""
 ssh_public_key    = ""
+
+# Current trusted IP for HTTPS (update when your public IP changes).
+https_allowed_cidr = "136.38.24.101/32"
