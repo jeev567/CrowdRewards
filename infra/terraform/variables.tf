@@ -46,3 +46,9 @@ variable "vpc_id" {
   type        = string
   default     = "vpc-019341a148043da19"
 }
+
+variable "https_allowed_cidr" {
+  description = "Trusted public IP/CIDR allowed to access HTTPS. Keep restricted until merchant authentication exists."
+  type        = string
+  default     = "136.38.24.101/32"
+}
