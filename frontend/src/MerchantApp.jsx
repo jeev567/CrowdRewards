@@ -1,0 +1,339 @@
+// JSX uses React in scope with the classic transform; useState stores UI state.
+import React, { useEffect, useState } from "react";
+
+// Components are reusable pieces of UI. This one shows the two brands.
+// PayPal is displayed as text for the prototype; use approved assets for production.
+function BrandHeader() {
+  return (
+    <header className="brand-bar">
+      <a className="brand" href="#" aria-label="CrowdRewards home"><span className="brand-mark">✦</span> Crowd<span className="accent">Rewards</span></a>
+      <div className="partner"><span className="partner-label">Payments powered by</span><strong className="paypal">PayPal</strong></div>
+    </header>
+  );
+}
+
+// Props are values passed from a parent component into a child component.
+function CampaignCard({ campaign, onEdit, onDelete, onJoin, joining }) {
+  const percent = Math.min(100, Math.round((campaign.joined / campaign.goal) * 100));
+  return (
+    <article className="campaign-card">
+      <div className="card-icon" aria-hidden="true">🎁</div>
+      <div className="card-body">
+        <div className="card-top"><span className="eyebrow">GROUP REWARD</span><span className="discount">Save {campaign.discount}%</span></div>
+        <h3>{campaign.title}</h3><p>{campaign.description}</p><p><strong>{Number(campaign.price).toFixed(2)} USD</strong>{campaign.price <= 0 ? " · Set a price to enable checkout" : ""}</p>
+        <div className="progress-label"><span>{campaign.joined} of {campaign.goal} joined</span><strong>{percent}%</strong></div>
+        <div className="progress-track" role="progressbar" aria-valuenow={percent} aria-valuemin="0" aria-valuemax="100" aria-label="Campaign progress"><div className="progress-fill" style={{ width: percent + "%" }} /></div>
+        <div className="campaign-actions"><button className="primary-button" disabled={joining || Number(campaign.price) <= 0 || campaign.joined >= campaign.goal} onClick={() => onJoin(campaign)}>{joining ? "Redirecting…" : "Join with PayPal"}</button><button className="secondary-button" onClick={() => onEdit(campaign)} disabled={campaign.joined > 0}>Edit</button><button className="secondary-button" onClick={() => onDelete(campaign)} disabled={campaign.joined > 0}>Delete</button></div>
+      </div>
+    </article>
+  );
+}
+
+export default function MerchantApp() {
+  // useState stores data that can change. Updating state causes React to re-render the UI.
+  const [campaigns, setCampaigns] = useState([]);
+  const [merchants, setMerchants] = useState([]);
+  const [merchantId, setMerchantId] = useState("");
+  const [merchantName, setMerchantName] = useState("");
+  const [merchantEmail, setMerchantEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // useEffect runs after the first render. Here it loads saved data from our Java API.
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [campaignResponse, merchantResponse] = await Promise.all([
+          fetch("/api/campaigns"), fetch("/api/merchants")
+        ]);
+        if (!campaignResponse.ok || !merchantResponse.ok) throw new Error("Could not load data. Is Spring Boot running?");
+        const [savedCampaigns, savedMerchants] = await Promise.all([
+          campaignResponse.json(), merchantResponse.json()
+        ]);
+        setCampaigns(savedCampaigns);
+        setMerchants(savedMerchants);
+        if (savedMerchants.length) setMerchantId(String(savedMerchants[0].id));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []); // Empty array means this effect runs on initial mount.
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState("");
+  const [discount, setDiscount] = useState("10");
+  const [goal, setGoal] = useState("25");
+  const [price, setPrice] = useState("");
+  const [joiningId, setJoiningId] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [receipt, setReceipt] = useState(null);
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [receiptError, setReceiptError] = useState("");
+  const [refundsByCampaign, setRefundsByCampaign] = useState({});
+  const [refundErrors, setRefundErrors] = useState({});
+  const [lifecycleByCampaign, setLifecycleByCampaign] = useState({});
+  const [dashboardBusy, setDashboardBusy] = useState(false);
+  const [aiProduct, setAiProduct] = useState("");
+  const [aiPrice, setAiPrice] = useState("");
+  const [aiAudience, setAiAudience] = useState("");
+  const [aiNotes, setAiNotes] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiRationale, setAiRationale] = useState("");
+
+  async function refreshDashboard() {
+    setDashboardBusy(true);
+    try {
+      const response = await fetch("/api/campaigns");
+      if (!response.ok) throw new Error("Unable to refresh campaigns");
+      const items = await response.json();
+      setCampaigns(items);
+      const results = await Promise.all(items.map(async campaign => {
+        try {
+          const res = await fetch(`/api/campaigns/${campaign.id}/refunds`);
+          if (!res.ok) throw new Error(`Refund API returned ${res.status}`);
+          const data = await res.json();
+          if (!Array.isArray(data)) throw new Error("Unexpected refund response");
+          return { id: campaign.id, refunds: data };
+        } catch (err) {
+          return { id: campaign.id, error: err.message };
+        }
+      }));
+      setRefundsByCampaign(Object.fromEntries(results.filter(item => !item.error).map(item => [item.id, item.refunds])));
+      setRefundErrors(Object.fromEntries(results.filter(item => item.error).map(item => [item.id, item.error])));
+      const lifecycleResults = await Promise.all(items.map(async campaign => {
+        try {
+          const response = await fetch(`/api/campaigns/${campaign.id}/lifecycle`);
+          return response.ok ? [campaign.id, await response.json()] : null;
+        } catch { return null; }
+      }));
+      setLifecycleByCampaign(Object.fromEntries(lifecycleResults.filter(Boolean)));
+    } catch (err) { setError(err.message); }
+    finally { setDashboardBusy(false); }
+  }
+
+  useEffect(() => {
+    if (!loading) refreshDashboard();
+  }, [loading]);
+
+  const dashboardRefunds = Object.values(refundsByCampaign).flat();
+  const completedRefunds = dashboardRefunds.filter(item => item.status === "COMPLETED");
+  const refundedTotal = completedRefunds.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const completedCampaigns = campaigns.filter(item => Number(item.joined) >= Number(item.goal) && Number(item.goal) > 0).length;
+  const purchases = campaigns.reduce((sum, item) => sum + Number(item.joined || 0), 0);
+  const estimatedGross = campaigns.reduce((sum, item) => sum + Number(item.joined || 0) * Number(item.price || 0), 0);
+
+  // Event handlers run in response to user actions, such as submitting a form.
+  function openCreate() {
+    setEditingId(null); setTitle(""); setDescription(""); setDiscount("10"); setGoal("25"); setPrice(""); setShowForm(true);
+  }
+
+  function openEdit(campaign) {
+    setEditingId(campaign.id); setTitle(campaign.title); setDescription(campaign.description);
+    setDiscount(String(campaign.discount)); setGoal(String(campaign.goal)); setPrice(String(campaign.price)); setShowForm(true);
+  }
+
+  async function handleJoin(campaign) {
+    setError(""); setJoiningId(campaign.id);
+    try {
+      const response = await fetch("/api/checkout/orders", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignId: campaign.id })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to create PayPal order");
+      sessionStorage.setItem("crowdrewards-paypal-order", data.orderId);
+      window.location.assign(data.approvalUrl);
+    } catch (err) { setError(err.message); setJoiningId(null); }
+  }
+
+  async function refreshReceipt(orderId) {
+    setReceiptBusy(true); setReceiptError("");
+    try {
+      const response = await fetch("/api/checkout/orders/" + encodeURIComponent(orderId) + "/receipt");
+      if (!response.ok) throw new Error("Could not retrieve receipt");
+      setReceipt(await response.json());
+    } catch (err) { setReceiptError(err.message); }
+    finally { setReceiptBusy(false); }
+  }
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const stored = sessionStorage.getItem("crowdrewards-paypal-order");
+    if (!token || !stored || token !== stored) {
+      const lastOrder = sessionStorage.getItem("crowdrewards-last-order");
+      if (lastOrder) refreshReceipt(lastOrder);
+      return;
+    }
+    window.history.replaceState({}, "", window.location.pathname);
+    async function complete() {
+      try {
+        const response = await fetch("/api/checkout/orders/" + encodeURIComponent(token) + "/capture", { method: "POST" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Payment capture failed");
+        setNotice("PayPal Sandbox payment completed. Campaign participation recorded.");
+        sessionStorage.setItem("crowdrewards-last-order", token);
+        await refreshReceipt(token);
+        sessionStorage.removeItem("crowdrewards-paypal-order");
+        const refreshed = await fetch("/api/campaigns");
+        if (refreshed.ok) setCampaigns(await refreshed.json());
+      } catch (err) { setError(err.message + ". Contact support before retrying payment."); }
+    }
+    complete();
+  }, []);
+
+  async function handleDelete(campaign) {
+    if (!window.confirm(`Delete "${campaign.title}"? This cannot be undone.`)) return;
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Could not delete campaign.");
+      setCampaigns(previous => previous.filter(item => item.id !== campaign.id));
+    } catch (err) { setError(err.message); }
+  }
+
+  async function handleAiSuggest() {
+    setError(""); setAiBusy(true); setAiRationale("");
+    try {
+      const response = await fetch("/api/ai/campaign-suggestion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product: aiProduct.trim(), price: Number(aiPrice),
+          audience: aiAudience.trim(), merchantNotes: aiNotes.trim()
+        })
+      });
+      if (!response.ok) {
+        const details = await response.json().catch(() => ({}));
+        throw new Error(details.error || "AI suggestion failed. Check backend configuration.");
+      }
+      const suggestion = await response.json();
+      setTitle(suggestion.title); setDescription(suggestion.description);
+      setDiscount(String(suggestion.discount)); setGoal(String(suggestion.goal));
+      setPrice(aiPrice);
+      setAiRationale(suggestion.rationale);
+    } catch (err) { setError(err.message); }
+    finally { setAiBusy(false); }
+  }
+
+  async function handleCreate(event) {
+    event.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      // POST sends JSON to Spring Boot. await pauses this function until the response arrives.
+      const response = await fetch(editingId ? `/api/campaigns/${editingId}` : "/api/campaigns", {
+        method: editingId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchantId: Number(merchantId), title: title.trim(),
+          description: description.trim(),
+          discount: Number(discount), goal: Number(goal), price: Number(price)
+        })
+      });
+      if (!response.ok) throw new Error("Campaign could not be saved. Check the form and backend.");
+      const created = await response.json();
+      setCampaigns(previous => editingId ? previous.map(item => item.id === editingId ? created : item) : [created, ...previous]);
+      setTitle(""); setDescription(""); setDiscount("10"); setGoal("25"); setPrice(""); setEditingId(null); setShowForm(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleCreateMerchant(event) {
+    event.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const response = await fetch("/api/merchants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: merchantName.trim(), email: merchantEmail.trim() })
+      });
+      if (!response.ok) throw new Error("Could not register merchant. Check the name/email or use another email.");
+      const merchant = await response.json();
+      setMerchants(previous => [merchant, ...previous]);
+      setMerchantId(String(merchant.id));
+      setMerchantName(""); setMerchantEmail("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="site">
+      <BrandHeader />
+      <main>
+        {(receipt || receiptBusy || receiptError) && <section className="receipt-panel" aria-label="Your purchase receipt">
+          <div className="receipt-heading"><div><div className="eyebrow">YOUR PURCHASE</div><h2>PayPal Sandbox receipt</h2></div><button className="secondary-button" disabled={receiptBusy} onClick={() => { const id = sessionStorage.getItem("crowdrewards-last-order"); if (id) refreshReceipt(id); }}>{receiptBusy ? "Checking…" : "Check refund status"}</button></div>
+          {receiptError && <p role="alert">{receiptError}</p>}
+          {receipt && <div className="receipt-details">
+            <div><span>Campaign</span><strong>{receipt.campaignTitle}</strong></div>
+            <div><span>Paid</span><strong>{"$" + Number(receipt.paidAmount).toFixed(2) + " USD"}</strong></div>
+            <div><span>Payment</span><strong>{receipt.paymentStatus}</strong></div>
+            <div><span>Group progress</span><strong>{receipt.joined} / {receipt.goal}</strong></div>
+            <div><span>Refund status</span><strong>{receipt.refundStatus.replaceAll("_", " ")}</strong></div>
+            <div><span>Refund amount</span><strong>{"$" + Number(receipt.refundAmount).toFixed(2) + " USD"}</strong></div>
+          </div>}
+          <p className="receipt-note">Demo receipt only. Refunds are processed through PayPal Sandbox after the target is reached. This browser remembers its most recent order.</p>
+        </section>}
+        <section className="hero">
+          <div className="hero-copy"><div className="pill">✦ AI-powered group buying</div><h1>Better deals.<br/><span className="gradient-text">Together.</span></h1><p>Turn every purchase into a shared win. Create group campaigns, grow your community, and reward everyone when goals are reached.</p><button className="primary-button" onClick={openCreate}>Create a campaign <span aria-hidden="true">→</span></button><div className="hero-note">Sandbox payments only · No real money</div></div>
+          <div className="hero-visual" aria-label="CrowdRewards and PayPal brand introduction"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="visual-center"><div className="visual-logo">✦</div><strong>CrowdRewards</strong><span className="visual-plus">+</span><strong className="paypal">PayPal</strong><small>Grow together. Reward together.</small></div></div>
+        </section>
+        <section className="campaign-section" id="dashboard" aria-label="Merchant dashboard">
+          <div className="section-heading"><div><div className="eyebrow">MERCHANT ANALYTICS</div><h2>Dashboard</h2><p>Live campaign progress and PayPal Sandbox refund records.</p></div><button className="secondary-button" onClick={refreshDashboard} disabled={dashboardBusy}>{dashboardBusy ? "Refreshing…" : "Refresh dashboard"}</button></div>
+          <div className="campaign-grid">
+            {[["Campaigns", campaigns.length], ["Purchases recorded", purchases], ["Targets reached", completedCampaigns], ["Estimated gross (USD)", "$" + estimatedGross.toFixed(2)], ["Completed refunds (USD)", "$" + refundedTotal.toFixed(2)]].map(([label, value]) => <article className="campaign-card" key={label}><div className="card-body"><div className="eyebrow">{label}</div><h2>{value}</h2></div></article>)}
+          </div>
+          <p style={{fontSize:"0.85rem"}}>Gross is estimated from campaign price × recorded purchases; it is not a PayPal settlement or net-revenue report.</p>
+          {Object.keys(refundErrors).length > 0 && <p role="alert">Refund details unavailable for some campaigns. Check the backend and retry.</p>}
+          {campaigns.map(campaign => {
+            const refunds = refundsByCampaign[campaign.id] || [];
+            const progress = Number(campaign.goal) > 0 ? Math.min(100, Math.round(100 * Number(campaign.joined || 0) / Number(campaign.goal))) : 0;
+            return <article className="campaign-card" key={campaign.id} style={{marginTop:"1rem"}}><div className="card-body">
+              <div className="card-top"><span className="eyebrow">CAMPAIGN #{campaign.id}</span><strong>{lifecycleByCampaign[campaign.id]?.state?.replaceAll("_", " ") || (progress >= 100 ? "Target reached" : "Active")}</strong></div>
+              <h3>{campaign.title}</h3><div className="progress-label"><span>{campaign.joined} / {campaign.goal} purchases</span><strong>{progress}%</strong></div>
+              <div className="progress-track" role="progressbar" aria-label={campaign.title + " progress"} aria-valuenow={progress} aria-valuemin="0" aria-valuemax="100"><div className="progress-fill" style={{width: progress + "%"}} /></div>
+              <h4>Refund activity</h4>
+              {refundErrors[campaign.id] ? <p role="alert">{refundErrors[campaign.id]}</p> : refunds.length === 0 ? <p>No refunds recorded.</p> : <div style={{overflowX:"auto"}}><table style={{width:"100%",textAlign:"left"}}><thead><tr><th>Refund ID</th><th>Amount</th><th>Status</th></tr></thead><tbody>{refunds.map((refund, index) => <tr key={refund.refundId || index}><td style={{wordBreak:"break-all"}}>{refund.refundId || "Pending"}</td><td>${Number(refund.amount || 0).toFixed(2)}</td><td>{refund.status}</td></tr>)}</tbody></table></div>}
+            </div></article>;
+          })}
+        </section>
+        <section className="campaign-section" id="campaigns"><div className="section-heading"><div><div className="eyebrow">MERCHANT STUDIO</div><h2>Campaigns</h2><p>Manage your group-buying ideas in one place.</p></div><button className="secondary-button" onClick={openCreate}>+ New campaign</button></div>
+          {error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}{notice && <p role="status">{notice}</p>}
+          {loading ? <p>Loading campaigns…</p> : campaigns.length === 0 ? <p>No campaigns yet. Register a merchant and create your first campaign.</p> : <div className="campaign-grid">{campaigns.map(campaign => <CampaignCard key={campaign.id} campaign={campaign} onEdit={openEdit} onDelete={handleDelete} onJoin={handleJoin} joining={joiningId === campaign.id} />)}</div>}
+          <section className="merchant-panel"><h3>Merchant registration</h3><p>Register a merchant to own new campaigns.</p>
+            <form onSubmit={handleCreateMerchant} className="merchant-form">
+              <label>Merchant name<input required maxLength={120} value={merchantName} onChange={event => setMerchantName(event.target.value)} placeholder="Your store name" /></label>
+              <label>Email<input required type="email" maxLength={254} value={merchantEmail} onChange={event => setMerchantEmail(event.target.value)} placeholder="store@example.com" /></label>
+              <button className="secondary-button" disabled={saving}>Register merchant</button>
+            </form>
+          </section>
+        </section>
+      </main>
+      <footer>© {new Date().getFullYear()} CrowdRewards · PayPal Sandbox demo only.</footer>
+      {showForm && <div className="modal-backdrop" onClick={() => setShowForm(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onClick={event => event.stopPropagation()}><div className="modal-heading"><h2 id="form-title">{editingId ? "Edit campaign" : "New campaign"}</h2><button className="icon-button" aria-label="Close form" onClick={() => setShowForm(false)}>×</button></div><p>Create a demo campaign. Campaigns are saved to SQLite through Spring Boot.</p>{error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}
+        {!editingId && <div className="ai-architect">
+          <h3>✦ AI Campaign Architect</h3>
+          <p>Describe your product and let AI draft a campaign. Review the numbers before saving.</p>
+          <label>Product or service<input maxLength={120} value={aiProduct} onChange={event => setAiProduct(event.target.value)} placeholder="e.g. Premium coffee bundle" /></label>
+          <label>Price (USD)<input type="number" min="0.01" max="1000000" step="0.01" value={aiPrice} onChange={event => setAiPrice(event.target.value)} placeholder="49.99" /></label>
+          <label>Target audience<input maxLength={500} value={aiAudience} onChange={event => setAiAudience(event.target.value)} placeholder="e.g. Local coffee lovers" /></label>
+          <label>Merchant notes<textarea maxLength={500} value={aiNotes} onChange={event => setAiNotes(event.target.value)} placeholder="Optional campaign constraints" /></label>
+          <button className="secondary-button" type="button" disabled={aiBusy || !aiProduct.trim() || !(Number(aiPrice) > 0)} onClick={handleAiSuggest}>{aiBusy ? "Generating…" : "✦ Generate with AI"}</button>
+          {aiRationale && <p className="ai-rationale"><strong>AI reasoning:</strong> {aiRationale}</p>}
+        </div>}
+        <form onSubmit={handleCreate}><label>Merchant<select required value={merchantId} onChange={event => setMerchantId(event.target.value)}><option value="">Select merchant</option>{merchants.map(merchant => <option key={merchant.id} value={merchant.id}>{merchant.name}</option>)}</select></label><label>Campaign name<input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Weekend Coffee Bundle" /></label><label>Description<textarea maxLength={500} value={description} onChange={event => setDescription(event.target.value)} /></label><label>Product price (USD)<input required type="number" min="0.01" max="1000000" step="0.01" value={price} onChange={event => setPrice(event.target.value)} placeholder="49.99" /></label><label>Discount percentage<input required type="number" min="1" max="90" step="1" value={discount} onChange={event => setDiscount(event.target.value)} /></label><label>Group target<input required type="number" min="2" step="1" value={goal} onChange={event => setGoal(event.target.value)} /></label><button className="primary-button" type="submit" disabled={saving || !merchantId}>{saving ? "Saving…" : editingId ? "Save changes →" : "Create campaign →"}</button></form></section></div>}
+    </div>
+  );
+}
