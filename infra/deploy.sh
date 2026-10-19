@@ -48,7 +48,7 @@ test -s "$work/backend.jar"
 test -f "$work/frontend/index.html"
 install -o crowdrewards -g crowdrewards -m 0644 "$work/backend.jar" /opt/crowdrewards/backend.jar.next
 # Keep previous application and frontend for rollback.
-cp -p /opt/crowdrewards/backend.jar /opt/crowdrewards/backend.jar.previous
+test -f /opt/crowdrewards/backend.jar && cp -p /opt/crowdrewards/backend.jar /opt/crowdrewards/backend.jar.previous
 mkdir -p /opt/crowdrewards
 rm -rf /opt/crowdrewards/frontend.previous
 if test -d /opt/crowdrewards/frontend; then
