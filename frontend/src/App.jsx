@@ -72,6 +72,9 @@ export default function App() {
   const [price, setPrice] = useState("");
   const [joiningId, setJoiningId] = useState(null);
   const [notice, setNotice] = useState("");
+  const [receipt, setReceipt] = useState(null);
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [receiptError, setReceiptError] = useState("");
   const [refundsByCampaign, setRefundsByCampaign] = useState({});
   const [refundErrors, setRefundErrors] = useState({});
   const [lifecycleByCampaign, setLifecycleByCampaign] = useState({});
@@ -149,11 +152,24 @@ export default function App() {
     } catch (err) { setError(err.message); setJoiningId(null); }
   }
 
+  async function refreshReceipt(orderId) {
+    setReceiptBusy(true); setReceiptError("");
+    try {
+      const response = await fetch("/api/checkout/orders/" + encodeURIComponent(orderId) + "/receipt");
+      if (!response.ok) throw new Error("Could not retrieve receipt");
+      setReceipt(await response.json());
+    } catch (err) { setReceiptError(err.message); }
+    finally { setReceiptBusy(false); }
+  }
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     const stored = sessionStorage.getItem("crowdrewards-paypal-order");
-    if (!token || !stored || token !== stored) return;
+    if (!token || !stored || token !== stored) {
+      const lastOrder = sessionStorage.getItem("crowdrewards-last-order");
+      if (lastOrder) refreshReceipt(lastOrder);
+      return;
+    }
     window.history.replaceState({}, "", window.location.pathname);
     async function complete() {
       try {
@@ -161,6 +177,8 @@ export default function App() {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Payment capture failed");
         setNotice("PayPal Sandbox payment completed. Campaign participation recorded.");
+        sessionStorage.setItem("crowdrewards-last-order", token);
+        await refreshReceipt(token);
         sessionStorage.removeItem("crowdrewards-paypal-order");
         const refreshed = await fetch("/api/campaigns");
         if (refreshed.ok) setCampaigns(await refreshed.json());
@@ -255,6 +273,19 @@ export default function App() {
     <div className="site">
       <BrandHeader />
       <main>
+        {(receipt || receiptBusy || receiptError) && <section className="receipt-panel" aria-label="Your purchase receipt">
+          <div className="receipt-heading"><div><div className="eyebrow">YOUR PURCHASE</div><h2>PayPal Sandbox receipt</h2></div><button className="secondary-button" disabled={receiptBusy} onClick={() => { const id = sessionStorage.getItem("crowdrewards-last-order"); if (id) refreshReceipt(id); }}>{receiptBusy ? "Checking…" : "Check refund status"}</button></div>
+          {receiptError && <p role="alert">{receiptError}</p>}
+          {receipt && <div className="receipt-details">
+            <div><span>Campaign</span><strong>{receipt.campaignTitle}</strong></div>
+            <div><span>Paid</span><strong>${Number(receipt.paidAmount).toFixed(2)} USD</strong></div>
+            <div><span>Payment</span><strong>{receipt.paymentStatus}</strong></div>
+            <div><span>Group progress</span><strong>{receipt.joined} / {receipt.goal}</strong></div>
+            <div><span>Refund status</span><strong>{receipt.refundStatus.replaceAll("_", " ")}</strong></div>
+            <div><span>Refund amount</span><strong>${Number(receipt.refundAmount).toFixed(2)} USD</strong></div>
+          </div>}
+          <p className="receipt-note">Demo receipt only. Refunds are processed through PayPal Sandbox after the target is reached. This browser remembers its most recent order.</p>
+        </section>}
         <section className="hero">
           <div className="hero-copy"><div className="pill">✦ AI-powered group buying</div><h1>Better deals.<br/><span className="gradient-text">Together.</span></h1><p>Turn every purchase into a shared win. Create group campaigns, grow your community, and reward everyone when goals are reached.</p><button className="primary-button" onClick={openCreate}>Create a campaign <span aria-hidden="true">→</span></button><div className="hero-note">Sandbox payments only · No real money</div></div>
           <div className="hero-visual" aria-label="CrowdRewards and PayPal brand introduction"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="visual-center"><div className="visual-logo">✦</div><strong>CrowdRewards</strong><span className="visual-plus">+</span><strong className="paypal">PayPal</strong><small>Grow together. Reward together.</small></div></div>
