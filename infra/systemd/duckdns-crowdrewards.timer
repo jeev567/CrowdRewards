@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh CrowdRewards DuckDNS regularly
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=duckdns-crowdrewards.service
+
+[Install]
+WantedBy=timers.target
