@@ -1,0 +1,23 @@
+[Unit]
+Description=CrowdRewards Spring Boot backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=crowdrewards
+Group=crowdrewards
+WorkingDirectory=/opt/crowdrewards
+EnvironmentFile=/etc/crowdrewards/backend.env
+ExecStart=/usr/bin/java -jar /opt/crowdrewards/backend.jar
+Restart=on-failure
+RestartSec=10
+SuccessExitStatus=143
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/crowdrewards
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
