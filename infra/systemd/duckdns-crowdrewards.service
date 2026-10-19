@@ -1,0 +1,9 @@
+[Unit]
+Description=Update CrowdRewards DuckDNS from EC2 public IP
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/bin/crowdrewards-update-duckdns
