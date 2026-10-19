@@ -74,6 +74,7 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [refundsByCampaign, setRefundsByCampaign] = useState({});
   const [refundErrors, setRefundErrors] = useState({});
+  const [lifecycleByCampaign, setLifecycleByCampaign] = useState({});
   const [dashboardBusy, setDashboardBusy] = useState(false);
   const [aiProduct, setAiProduct] = useState("");
   const [aiPrice, setAiPrice] = useState("");
@@ -102,6 +103,13 @@ export default function App() {
       }));
       setRefundsByCampaign(Object.fromEntries(results.filter(item => !item.error).map(item => [item.id, item.refunds])));
       setRefundErrors(Object.fromEntries(results.filter(item => item.error).map(item => [item.id, item.error])));
+      const lifecycleResults = await Promise.all(items.map(async campaign => {
+        try {
+          const response = await fetch(`/api/campaigns/${campaign.id}/lifecycle`);
+          return response.ok ? [campaign.id, await response.json()] : null;
+        } catch { return null; }
+      }));
+      setLifecycleByCampaign(Object.fromEntries(lifecycleResults.filter(Boolean)));
     } catch (err) { setError(err.message); }
     finally { setDashboardBusy(false); }
   }
@@ -262,7 +270,7 @@ export default function App() {
             const refunds = refundsByCampaign[campaign.id] || [];
             const progress = Number(campaign.goal) > 0 ? Math.min(100, Math.round(100 * Number(campaign.joined || 0) / Number(campaign.goal))) : 0;
             return <article className="campaign-card" key={campaign.id} style={{marginTop:"1rem"}}><div className="card-body">
-              <div className="card-top"><span className="eyebrow">CAMPAIGN #{campaign.id}</span><strong>{progress >= 100 ? "Target reached" : "Active"}</strong></div>
+              <div className="card-top"><span className="eyebrow">CAMPAIGN #{campaign.id}</span><strong>{lifecycleByCampaign[campaign.id]?.state?.replaceAll("_", " ") || (progress >= 100 ? "Target reached" : "Active")}</strong></div>
               <h3>{campaign.title}</h3><div className="progress-label"><span>{campaign.joined} / {campaign.goal} purchases</span><strong>{progress}%</strong></div>
               <div className="progress-track" role="progressbar" aria-label={campaign.title + " progress"} aria-valuenow={progress} aria-valuemin="0" aria-valuemax="100"><div className="progress-fill" style={{width: progress + "%"}} /></div>
               <h4>Refund activity</h4>
