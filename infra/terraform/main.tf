@@ -16,32 +16,6 @@ resource "aws_security_group" "demo" {
   description = "CrowdRewards only - separate from DealSeal security groups"
   vpc_id      = var.vpc_id
 
-  dynamic "ingress" {
-    for_each = var.ssh_allowed_cidr == "" ? [] : [var.ssh_allowed_cidr]
-    content {
-      description = "SSH from trusted address only"
-      from_port   = 22
-      to_port     = 22
-      protocol    = "tcp"
-      cidr_blocks = [ingress.value]
-    }
-  }
-
-  ingress {
-    description = "Demo HTTP from trusted address only"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = [var.http_allowed_cidr]
-  }
-
-  egress {
-    description = "Outbound APIs and package installation"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   lifecycle {
     create_before_destroy = true
@@ -99,12 +73,38 @@ resource "aws_instance" "demo" {
   tags = { Name = "crowdrewards-hackathon-demo", Application = "CrowdRewards" }
 }
 
-# HTTPS remains restricted until merchant/admin authentication is implemented.
+# Standalone rules avoid conflicts with inline security group rule management.
+resource "aws_vpc_security_group_ingress_rule" "http" {
+  security_group_id = aws_security_group.demo.id
+  description       = "HTTP for Let's Encrypt HTTP-01 validation"
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+  cidr_ipv4         = var.http_allowed_cidr
+}
+
 resource "aws_vpc_security_group_ingress_rule" "https" {
   security_group_id = aws_security_group.demo.id
-  description       = "CrowdRewards HTTPS from trusted IP only"
+  description       = "HTTPS from trusted IP only"
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
-  cidr_ipv4         = "136.38.24.101/32"
+  cidr_ipv4         = var.https_allowed_cidr
+}
+
+resource "aws_vpc_security_group_egress_rule" "all" {
+  security_group_id = aws_security_group.demo.id
+  description       = "Outbound APIs and package installation"
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ssh" {
+  count             = var.ssh_allowed_cidr == "" ? 0 : 1
+  security_group_id = aws_security_group.demo.id
+  description       = "Optional SSH from trusted address"
+  ip_protocol       = "tcp"
+  from_port         = 22
+  to_port           = 22
+  cidr_ipv4         = var.ssh_allowed_cidr
 }
