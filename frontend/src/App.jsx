@@ -278,11 +278,11 @@ export default function App() {
           {receiptError && <p role="alert">{receiptError}</p>}
           {receipt && <div className="receipt-details">
             <div><span>Campaign</span><strong>{receipt.campaignTitle}</strong></div>
-            <div><span>Paid</span><strong>${Number(receipt.paidAmount).toFixed(2)} USD</strong></div>
+            <div><span>Paid</span><strong>{"$" + Number(receipt.paidAmount).toFixed(2) + " USD"}</strong></div>
             <div><span>Payment</span><strong>{receipt.paymentStatus}</strong></div>
             <div><span>Group progress</span><strong>{receipt.joined} / {receipt.goal}</strong></div>
             <div><span>Refund status</span><strong>{receipt.refundStatus.replaceAll("_", " ")}</strong></div>
-            <div><span>Refund amount</span><strong>${Number(receipt.refundAmount).toFixed(2)} USD</strong></div>
+            <div><span>Refund amount</span><strong>{"$" + Number(receipt.refundAmount).toFixed(2) + " USD"}</strong></div>
           </div>}
           <p className="receipt-note">Demo receipt only. Refunds are processed through PayPal Sandbox after the target is reached. This browser remembers its most recent order.</p>
         </section>}
