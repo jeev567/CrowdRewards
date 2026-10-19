@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region in which to run the hackathon demo."
   type        = string
-  default     = "us-east-1"
+  default     = "us-west-2"
 }
 
 variable "instance_type" {
@@ -38,9 +38,11 @@ variable "http_allowed_cidr" {
 variable "subnet_id" {
   description = "Public subnet ID in an existing VPC, with automatic public IP assignment possible."
   type        = string
+  default     = "subnet-04b32832073263b34"
 }
 
 variable "vpc_id" {
-  description = "Existing VPC that contains subnet_id."
+  description = "Existing DealSeal VPC shared by CrowdRewards networking only."
   type        = string
+  default     = "vpc-019341a148043da19"
 }
