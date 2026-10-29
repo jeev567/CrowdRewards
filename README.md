@@ -118,3 +118,15 @@ The key business hypothesis is that a merchant can acquire additional buyers thr
 ## Disclaimer
 
 CrowdRewards is an independent hackathon prototype and is not an official PayPal product. Sandbox transactions do not move real money. Campaign examples and financial outcomes in this README are illustrative.
+
+## Devpost: PayPal and AI implementation
+
+- **OpenAI API:** Assists merchants in designing campaign terms, purchase targets, and customer rewards; deterministic backend rules control eligibility and refunds.
+- **PayPal Sandbox REST APIs:** Power the hosted checkout flow, capture of eligible customer purchases, and partial refunds after the configured campaign threshold is reached.
+- **PayPal value:** A potential increase in merchant conversion and payment volume through group incentives; these are hypotheses rather than measured outcomes.
+
+**Judging walkthrough:** AI campaign design → merchant approval → PayPal Sandbox purchase → verified purchase count → threshold reached → eligible partial refunds. Refer to the backend for exact API endpoints and verify the live Sandbox flow before judging.
+
+## License
+
+This project is available under the [MIT License](LICENSE).
